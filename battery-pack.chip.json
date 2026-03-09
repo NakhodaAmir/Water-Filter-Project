@@ -1,0 +1,11 @@
+{
+  "name": "battery-pack",
+  "author": "Zach",
+  "pins": [
+    "",
+    "",
+    "V+",
+    "GND"
+  ],
+  "controls": []
+}
