@@ -1,0 +1,19 @@
+{
+  "name": "ph-sensor",
+  "author": "Zach",
+  "pins": [
+    "Out",
+    "",
+    "VCC",
+    "GND"
+  ],
+  "properties": {
+    "ph": {
+      "type": "integer",
+      "default": 7,
+      "min": 0,
+      "max": 14
+    }
+  },
+  "controls": []
+}
