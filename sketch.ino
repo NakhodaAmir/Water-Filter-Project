@@ -42,6 +42,9 @@ const int tankFull = 0 + epsilon;
 // depth of tank in cm
 const long tankDepth = 22.86;
 
+//water level has to be 2x epsilon to start filling
+const int fillThreshold = 100 - epsilon * 2;
+
 
 // ---------------------------------------------------------
 // 3. STATE MACHINE DEFINITIONS
@@ -132,16 +135,15 @@ void loop() { // runs forever
   if (tankState == States::FAULT) {
     // Clear fault manually with a button press (edge detection so it only clears once)
     if (currentButtonState == HIGH && lastButtonState == LOW) {
+      lcd.clear();
       tankState = States::IDLE;
       faultState = Faults::NO_FAULT;
     }
     dispensing = false; // Never dispense while in fault
   } else {
     // Momentary dispense: Only true while the button is held AND there is water
-    if (currentButtonState == HIGH && d2 < tankEmpty) {
-      dispensing = true;
-    } else {
-      dispensing = false;
+    if (currentButtonState == HIGH && lastButtonState == LOW && d2 < tankEmpty) {
+      dispensing = !dispensing;
     }
   }
   lastButtonState = currentButtonState;
@@ -154,37 +156,6 @@ void loop() { // runs forever
     lcd.clear();    // Clear the screen to prevent leftover characters
   }
   lastDisplayButtonState = currentDisplayButtonState;
-
-  // ---------------------------------------------------------
-  // 1.5 --- Global Safety & Fault Triggers ---
-  // ---------------------------------------------------------
-  if (tankState != States::FAULT) {
-    
-    // CASE 1: Imminent Overflow. 
-    // If either tank reads runOffPercent or less, it breached the 5% safety buffer!
-    if (d1 <= tankFull || d2 <= tankFull) {
-      tankState = States::FAULT;
-      faultState = Faults::OVERFLOW;
-    }
-    
-    // CASE 2: Dry-Run Protection.
-    // If the supply tank is totally empty but the state machine is trying to pump
-    else if (d1 >= tankEmpty && pumpRunning == true) {
-      tankState = States::FAULT;
-      faultState = Faults::INPUT_EMPTY;
-    }
-
-    else if (ph2<acidic){
-      tankState = States::FAULT;
-      faultState = Faults::ACIDIC;
-    }
-
-    else if (ph2>basic){
-      tankState = States::FAULT;
-      faultState = Faults::BASIC;
-    }
-    
-  }
   // Only for no dispense button
   /*
   int currentD2WaterLevel = d2;
@@ -208,7 +179,7 @@ void loop() { // runs forever
       dispensing = false;
 
       // TRANSITIONS:
-      if (d1 < tankEmpty && d2 >= tankEmpty) { 
+      if (d1 < fillThreshold && d2 >= tankEmpty) { 
         tankState = States::FILLING; // Filtered has water, Output is empty
       } else if (d2 < tankEmpty) {
         tankState = States::READY;   // Output somehow got water, go to ready
@@ -290,18 +261,49 @@ void loop() { // runs forever
   }
 
   // ---------------------------------------------------------
+  // 1.5 --- Global Safety & Fault Triggers ---
+  // ---------------------------------------------------------
+  if (tankState != States::FAULT) {
+    
+    // CASE 1: Imminent Overflow. 
+    // If either tank reads runOffPercent or less, it breached the 5% safety buffer!
+    if (d1 <= 0 || d2 <= 0) {
+      tankState = States::FAULT;
+      faultState = Faults::OVERFLOW;
+    }
+    
+    // CASE 2: Dry-Run Protection.
+    // If the supply tank is totally empty but the state machine is trying to pump
+    else if (d1 >= 100 && pumpRunning == true) {
+      tankState = States::FAULT;
+      faultState = Faults::INPUT_EMPTY;
+    }
+
+    else if (ph2<acidic){
+      tankState = States::FAULT;
+      faultState = Faults::ACIDIC;
+    }
+
+    else if (ph2>basic){
+      tankState = States::FAULT;
+      faultState = Faults::BASIC;
+    }
+    
+  }
+
+  // ---------------------------------------------------------
   // 3. LCD DISPLAY LOGIC
   // ---------------------------------------------------------
   lcd.setCursor(0, 0);
   if(right) {
     lcd.setCursor(0, 0);
-    lcd.print("IN: "); lcd.print(d2); lcd.print("%   PH: "); lcd.print(readPHSensor(ph2)); lcd.print(" ");
+    lcd.print("IN: "); lcd.print(d1); lcd.print("%   PH: "); lcd.print(readPHSensor(ph1)); lcd.print(" ");
     lcd.setCursor(0, 1);
     lcd.print(tankStateToString(tankState));
   }
   else {
     lcd.setCursor(0, 0);
-    lcd.print("OUT: "); lcd.print(d1); lcd.print("%  PH: "); lcd.print(readPHSensor(ph1)); lcd.print(" ");
+    lcd.print("OUT: "); lcd.print(d2); lcd.print("%  PH: "); lcd.print(readPHSensor(ph2)); lcd.print(" ");
     lcd.setCursor(0, 1);
     lcd.print(tankStateToString(tankState));
   }
@@ -333,7 +335,7 @@ void loop() { // runs forever
 }
 
 long getDist(int t, int e) { 
-  int numSamples = 3; // Reduced from 5 for faster response
+  int numSamples = 40; // Reduced from 5 for faster response
   long totalDistance = 0;
 
   for (int i = 0; i < numSamples; i++) {
@@ -356,7 +358,7 @@ long getDist(int t, int e) {
 }
 
 long readPHSensor(int pin) { 
-  int numSamples = 100; // Reduced from 5 for faster response
+  int numSamples = 40; // Reduced from 5 for faster response
   long totalReading = 0;
 
   for (int i = 0; i < numSamples; i++) {
@@ -371,7 +373,7 @@ long readPHSensor(int pin) {
 
 const char* tankStateToString(States tankState) {
   switch(tankState) {
-    case States::IDLE: return "IDLE    ";
+    case States::IDLE: return "IDLE      ";
     case States::FAULT: return "FAULT ";
     case States::READY: return "READY     ";
     case States::DISPENSE: return "DISPENSE  ";
@@ -382,7 +384,7 @@ const char* tankStateToString(States tankState) {
 const char* faultStateToString(Faults faultState) {
   switch(faultState) {
     case Faults::OVERFLOW: return "OVERFLOW";
-    case Faults::INPUT_EMPTY: return "INPUT EMPTY";
+    case Faults::INPUT_EMPTY: return "IN EMPTY";
     case Faults::ACIDIC: return"OUT ACIDIC";
     case Faults::BASIC: return"OUT BASIC";
   }
