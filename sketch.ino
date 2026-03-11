@@ -1,10 +1,11 @@
-#include <LiquidCrystal.h>
-
 // ---------------------------------------------------------
 // 1. LCD SETUP
 // ---------------------------------------------------------
-// LCD Pins: RS=13, E=12, D4=7, D5=6, D6=5, D7=4
-LiquidCrystal lcd(13, 12, 7, 6, 5, 4);
+#include <Wire.h>
+#include <hd44780.h>
+#include <hd44780ioClass/hd44780_I2Cexp.h>
+hd44780_I2Cexp lcd;
+
 
 // ---------------------------------------------------------
 // 2. PIN DEFINITIONS
