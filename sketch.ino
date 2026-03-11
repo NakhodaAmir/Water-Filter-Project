@@ -174,6 +174,7 @@ void loop() { // runs forever
     
     case States::IDLE:
       // ACTIONS: Everything off
+      delay(3000);
       digitalWrite(pump, LOW);
       pumpRunning = false;
       digitalWrite(spigot, LOW);
@@ -214,6 +215,7 @@ void loop() { // runs forever
       } 
       // Ready(1) -> Filtered is empty OR Output is totally full
       else {
+        delay(3000);
         digitalWrite(pump, LOW);
         pumpRunning = false;
       }
