@@ -5,7 +5,7 @@ OLD LCD Setup Code, only used for WOKWI sims
 LiquidCrystal lcd(13, 12, 7, 6, 5, 4);
 */
 
-// TO DO: Test, Fix overflow fault glitch/error (probable causes: sensor reading functions calibrated incorrectly/inconsistently formatted i.e. 100 - percentage value, not mapped to a percentage and just reading a dist value, epsilons improperly calibrated, etc.), make sure the changes to amirs sensor reading functions didnt cause syntax/compilation issues
+// TO DO: Test, Fix overflow fault glitch/error (probable causes: sensor reading functions calibrated incorrectly/inconsistently formatted i.e. 100 - percentage value, not mapped to a percentage and just reading a dist value, epsilons improperly calibrated, etc.), make sure the changes to amirs sensor reading functions didnt cause syntax/compilation issues, calibrate code for physical dimensions provided
 
 // 41.4 (OUT), 39.0 (IN)
 
