@@ -5,13 +5,16 @@ OLD LCD Setup Code, only used for WOKWI sims
 LiquidCrystal lcd(13, 12, 7, 6, 5, 4);
 */
 
+// TO DO: Test, Fix overflow fault glitch/error (probable causes: sensor reading functions calibrated incorrectly/inconsistently formatted i.e. 100 - percentage value, not mapped to a percentage and just reading a dist value, epsilons improperly calibrated, etc.), make sure the changes to amirs sensor reading functions didnt cause syntax/compilation issues
+
+// 41.4 (OUT), 39.0 (IN)
+
 // ---------------------------------------------------------
 // 1. LCD SETUP
 // ---------------------------------------------------------
-#include <Wire.h>
-#include <hd44780.h>
-#include <hd44780ioClass/hd44780_I2Cexp.h>
-hd44780_I2Cexp lcd;
+#include <LiquidCrystal.h>
+// LCD Pins: RS=12, E=11, D4=7, D5=6, D6=5, D7=4
+LiquidCrystal lcd(13, 12, 7, 6, 5, 4);
 
 
 // ---------------------------------------------------------
@@ -189,7 +192,7 @@ void loop() { // runs forever
     
     case States::IDLE:
       // ACTIONS: Everything off
-      delay(3000);
+      delay(500);
       digitalWrite(pump, LOW);
       pumpRunning = false;
       digitalWrite(spigot, LOW);
@@ -230,7 +233,7 @@ void loop() { // runs forever
       } 
       // Ready(1) -> Filtered is empty OR Output is totally full
       else {
-        delay(3000);
+        delay(500);
         digitalWrite(pump, LOW);
         pumpRunning = false;
       }
@@ -285,7 +288,7 @@ void loop() { // runs forever
     
     // CASE 1: Imminent Overflow. 
     // If either tank reads runOffPercent or less, it breached the 5% safety buffer!
-    if (d1 <= 0 || d2 <= 0) {
+    if (d1 <= tankFull || d2 <= tankFull) {
       tankState = States::FAULT;
       faultState = Faults::OVERFLOW;
     }
@@ -306,32 +309,32 @@ void loop() { // runs forever
     else if (ph2>basic){
       tankState = States::FAULT;
       faultState = Faults::BASIC;
-    }    
+    }
 
     // CASE 4: Incorrect Sensor Readings
     // The ultrasonic sensor has a tendency to read things other than the water level, returning some value between 19.0 and 22.0 in all of these cases
     else if (sens1 > 19.0 && sens1 < 22.0) {
       tankState = States::FAULT;
-      faultState = Faults::SENSOR1;
+      faultState = Faults::IN_SENSOR;
     }
     else if (sens2 > 19.0 && sens2 < 22.0) {
       tankState = States::FAULT;
-      faultState = Faults::SENSOR2;
+      faultState = Faults::OUT_SENSOR;
     }
-
+  }
   // ---------------------------------------------------------
   // 3. LCD DISPLAY LOGIC
   // ---------------------------------------------------------
   lcd.setCursor(0, 0);
   if(right) {
     lcd.setCursor(0, 0);
-    lcd.print("IN: "); lcd.print(d1); lcd.print("%   PH: "); lcd.print(readPHSensor(ph1)); lcd.print(" ");
+    lcd.print("IN: "); lcd.print(d1); lcd.print("%   PH: "); lcd.print(readPHSensor(phSens1)); lcd.print(" ");
     lcd.setCursor(0, 1);
     lcd.print(tankStateToString(tankState));
   }
   else {
     lcd.setCursor(0, 0);
-    lcd.print("OUT: "); lcd.print(d2); lcd.print("%  PH: "); lcd.print(readPHSensor(ph2)); lcd.print(" ");
+    lcd.print("OUT: "); lcd.print(d2); lcd.print("%  PH: "); lcd.print(readPHSensor(phSens2)); lcd.print(" ");
     lcd.setCursor(0, 1);
     lcd.print(tankStateToString(tankState));
   }
@@ -377,23 +380,14 @@ long checkSensor(int t, int e) {
 }
 
 long getDist(int t, int e) { 
-  int numSamples = 40; // Reduced from 5 for faster response
-  long totalDistance = 0;
-
-  for (int i = 0; i < numSamples; i++) {
-    digitalWrite(t, LOW);
-    delayMicroseconds(2);
-    digitalWrite(t, HIGH);
-    delayMicroseconds(10);
-    digitalWrite(t, LOW);
-    
-    // Add a 30,000 microsecond timeout to pulseIn! 
-    long duration = (pulseIn(e, HIGH, 30000)* .034 / 2); 
-
-    if(!duration > 19.0) {
-      totalDistance += duration;
-      delay(2); // Reduced from 10 to make buttons snappier
-    }
+  digitalWrite(t, LOW);
+  delayMicroseconds(2);
+  digitalWrite(t, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(t, LOW);
+  
+  long duration = (pulseIn(e, HIGH, 30000)* .034 / 2); 
+  return map(duration, 0, )
   }
 
   int averageDistance = totalDistance / numSamples;
@@ -411,8 +405,8 @@ long readPHSensor(int pin) {
   }
 
   long averageReading = totalReading / numSamples;
-  long phValue = map(averageReading, 0, 1023, 0, 14); 
-  return constrain(phValue, 0, 14); 
+  long phValue = map(averageReading, 0.0, 1023.0, 0.0, 14.0); 
+  return constrain(phValue, 0.0, 14.0); 
 }
 
 const char* tankStateToString(States tankState) {
@@ -431,7 +425,7 @@ const char* faultStateToString(Faults faultState) {
     case Faults::INPUT_EMPTY: return "IN EMPTY";
     case Faults::ACIDIC: return "OUT ACIDIC";
     case Faults::BASIC: return "OUT BASIC";
-    case Faults::IN_SENSOR return "IN SENSOR";
-    case Faults::OUT_SENSOR return "OUT SENSOR";
+    case Faults::IN_SENSOR: return "IN SENSOR";
+    case Faults::OUT_SENSOR: return "OUT SENSOR";
   }
 }
