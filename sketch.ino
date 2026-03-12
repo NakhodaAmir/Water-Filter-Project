@@ -1,3 +1,10 @@
+/*
+OLD LCD Setup Code, only used for WOKWI sims
+#include <LiquidCrystal.h>
+// LCD Pins: RS=12, E=11, D4=7, D5=6, D6=5, D7=4
+LiquidCrystal lcd(13, 12, 7, 6, 5, 4);
+*/
+
 // ---------------------------------------------------------
 // 1. LCD SETUP
 // ---------------------------------------------------------
