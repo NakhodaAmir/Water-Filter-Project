@@ -58,6 +58,7 @@ enum class States {
   FAULT
 };
 
+
 // ---------------------------------------------------------
 // 3.5. FAULT STATES DEFINITIONS
 // ---------------------------------------------------------
@@ -71,6 +72,7 @@ enum class Faults {
 
 States tankState; // Tracks the current active mode of the system
 Faults faultState;
+
 
 // ---------------------------------------------------------
 // 4. SYSTEM TRACKING VARIABLES
@@ -130,6 +132,9 @@ void loop() { // runs forever
   int d1 = getDist(trig1, echo1); // Filtered Tank (100% = empty, 0% = full)
   int d2 = getDist(trig2, echo2); // Output Tank (100% = empty, 0% = full)
 
+  int sens1 = checkSensor(trig1, echo1); // Fault detection variable for tank 1 sensor
+  int sens2 = checkSensor(trig2, echo2); // Fault detection variable for tank 2 sensor
+
   // --- Display Button Debounce & Edge Detection ---
   currentButtonState = analogRead(switchPin) >= 1000;
   
@@ -167,6 +172,7 @@ void loop() { // runs forever
   }
   lastD2WaterLevel = currentD2WaterLevel;
 */
+  
   // ---------------------------------------------------------
   // 2. STATE MACHINE LOGIC
   // ---------------------------------------------------------
@@ -264,7 +270,7 @@ void loop() { // runs forever
   }
 
   // ---------------------------------------------------------
-  // 1.5 --- Global Safety & Fault Triggers ---
+  // 2.5 --- Global Safety & Fault Triggers ---
   // ---------------------------------------------------------
   if (tankState != States::FAULT) {
     
@@ -274,6 +280,8 @@ void loop() { // runs forever
       tankState = States::FAULT;
       faultState = Faults::OVERFLOW;
     }
+
+    
     
     // CASE 2: Dry-Run Protection.
     // If the supply tank is totally empty but the state machine is trying to pump
@@ -290,8 +298,7 @@ void loop() { // runs forever
     else if (ph2>basic){
       tankState = States::FAULT;
       faultState = Faults::BASIC;
-    }
-    
+    }    
   }
 
   // ---------------------------------------------------------
@@ -322,7 +329,8 @@ void loop() { // runs forever
   else {
     lcd.print(faultStateToString(faultState));
   }
-    // ---------------------------------------------------------
+  
+  // ---------------------------------------------------------
   // 4. Clear Input Tank water
   // ---------------------------------------------------------
   long currentTime = millis();
@@ -330,11 +338,24 @@ void loop() { // runs forever
       if(d1==lastD1WaterLevel && d1!=100){
         tankState = States::FILLING;
         previousTime = currentTime;
-      }else{
+      } else {
         lastD1WaterLevel = d1;
         previousTime = currentTime;
       }
    }
+}
+
+long checkSensor(int t, int e) {
+    digitalWrite(t, LOW);
+    delayMicroseconds(2);
+    digitalWrite(t, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(t, LOW);
+    
+    // Add a 30,000 microsecond timeout to pulseIn! 
+    long distance = pulseIn(e, HIGH, 30000) * .034 / 2; 
+    delay(2); // Reduced from 10 to make buttons snappier
+    return distance;
 }
 
 long getDist(int t, int e) { 
@@ -349,15 +370,17 @@ long getDist(int t, int e) {
     digitalWrite(t, LOW);
     
     // Add a 30,000 microsecond timeout to pulseIn! 
-    long duration = pulseIn(e, HIGH, 30000); 
-    
-    totalDistance += (duration * 0.034 / 2);
-    delay(2); // Reduced from 10 to make buttons snappier
+    long duration = (pulseIn(e, HIGH, 30000)* .034 / 2); 
+
+    if(!duration > 19.0) {
+      totalDistance += duration;
+      delay(2); // Reduced from 10 to make buttons snappier
+    }
   }
 
   int averageDistance = totalDistance / numSamples;
   int percentage = map(averageDistance, 0, tankDepth, 0, 100); 
-  return constrain(percentage, 0, 100); 
+  return constrain(percentage, 0, 100);
 }
 
 long readPHSensor(int pin) { 
