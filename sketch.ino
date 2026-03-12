@@ -63,11 +63,13 @@ enum class States {
 // 3.5. FAULT STATES DEFINITIONS
 // ---------------------------------------------------------
 enum class Faults {
-  NO_FAULT,//No fault
-  OVERFLOW,//When either tank passes over the epsilon buffer + runOffPercent
-  INPUT_EMPTY,//When Tank 1 is empty to prevent dry pumping
-  ACIDIC,
-  BASIC
+  NO_FAULT,// No fault (yay!)
+  OVERFLOW,// When either tank passes over the epsilon buffer + runOffPercent
+  INPUT_EMPTY,// When Tank 1 is empty to prevent dry pumping
+  ACIDIC, // When the water in Tank 2 is too acidic
+  BASIC, // When the water in Tank 2 is too basic
+  IN_SENSOR, // When the sensor above the input tank is bugged out
+  OUT_SENSOR // When the sensor above the output tank is bugged out
 };
 
 States tankState; // Tracks the current active mode of the system
@@ -280,8 +282,6 @@ void loop() { // runs forever
       tankState = States::FAULT;
       faultState = Faults::OVERFLOW;
     }
-
-    
     
     // CASE 2: Dry-Run Protection.
     // If the supply tank is totally empty but the state machine is trying to pump
@@ -290,16 +290,27 @@ void loop() { // runs forever
       faultState = Faults::INPUT_EMPTY;
     }
 
+    // CASE 3: Unfiltered Filtered Water
+    // If the water in the output tank is outside of the acceptable PH range, either too acidic or too basic respectively
     else if (ph2<acidic){
       tankState = States::FAULT;
       faultState = Faults::ACIDIC;
     }
-
     else if (ph2>basic){
       tankState = States::FAULT;
       faultState = Faults::BASIC;
     }    
-  }
+
+    // CASE 4: Incorrect Sensor Readings
+    // The ultrasonic sensor has a tendency to read things other than the water level, returning some value between 19.0 and 22.0 in all of these cases
+    else if (sens1 > 19.0 && sens1 < 22.0) {
+      tankState = States::FAULT;
+      faultState = Faults::SENSOR1;
+    }
+    else if (sens2 > 19.0 && sens2 < 22.0) {
+      tankState = States::FAULT;
+      faultState = Faults::SENSOR2;
+    }
 
   // ---------------------------------------------------------
   // 3. LCD DISPLAY LOGIC
@@ -411,7 +422,9 @@ const char* faultStateToString(Faults faultState) {
   switch(faultState) {
     case Faults::OVERFLOW: return "OVERFLOW";
     case Faults::INPUT_EMPTY: return "IN EMPTY";
-    case Faults::ACIDIC: return"OUT ACIDIC";
-    case Faults::BASIC: return"OUT BASIC";
+    case Faults::ACIDIC: return "OUT ACIDIC";
+    case Faults::BASIC: return "OUT BASIC";
+    case Faults::IN_SENSOR return "IN SENSOR";
+    case Faults::OUT_SENSOR return "OUT SENSOR";
   }
 }
