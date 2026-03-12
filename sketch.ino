@@ -387,7 +387,15 @@ long getDist(int t, int e) {
   digitalWrite(t, LOW);
   
   long duration = (pulseIn(e, HIGH, 30000)* .034 / 2); 
-  return map(duration, 0, )
+  return duration;
+  }
+
+  long formatDist1(long dist) {
+    return map(dist, 19.0, 39.0, 0.0, 100.0);
+  }
+
+  long formatDist2(long dist) {
+    return map(dist, 21.4, 41.4, 0.0, 100.0);
   }
 
   int averageDistance = totalDistance / numSamples;
