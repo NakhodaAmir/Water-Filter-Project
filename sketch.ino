@@ -16,8 +16,8 @@ const int echo1 = 2;
 
 // Ultrasonic Sensor 2 (Output Tank)
 // NOTE: Pins 0 and 1 are used for RX/TX (Serial communication) on standard Arduinos.
-const int trig2 = 1;
-const int echo2 = 0;
+const int trig2 = 5;
+const int echo2 = 4;
 
 // PH Sensors
 const int phSens1 = A0; // Filtered Tank pH
