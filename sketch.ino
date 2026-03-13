@@ -1,10 +1,22 @@
+// Test: an incrementer for every time the code loops, and one for every time the code loops and the button is being held down, if millis() since last button press is more than 10 seconds & two increment variables are the same, enter tesing mode
+
 // ---------------------------------------------------------
 // SETUP 1. LCD SETUP
 // ---------------------------------------------------------
+// Physical Model LCD Screen Initializers (should be commented out for wokwi testing)
+// /*
 #include <Wire.h>
 #include <hd44780.h>
 #include <hd44780ioClass/hd44780_I2Cexp.h>
 hd44780_I2Cexp lcd;
+// */
+
+// Wokwi Diagram LCD Screen Initializers (should be commented out for physical model)
+/*
+#include <LiquidCrystal.h>
+// LCD Pins: RS=13, E=12, D4=7, D5=6, D6=5, D7=4
+LiquidCrystal lcd(13, 12, 7, 6, 5, 4);
+*/
 
 
 // ---------------------------------------------------------
@@ -16,8 +28,8 @@ const int echo1 = 2;
 
 // Ultrasonic Sensor 2 (Output Tank)
 // NOTE: Pins 0 and 1 are used for RX/TX (Serial communication) on standard Arduinos.
-const int trig2 = 5;
-const int echo2 = 4;
+const int trig2 = 5; // should be 5 on physical model
+const int echo2 = 4; // should be 5 on physical model
 
 // PH Sensors
 const int phSens1 = A0; // Filtered Tank pH
@@ -41,10 +53,17 @@ const int tankEmpty = 100 - epsilon;
 const int tankFull = 0 + epsilon;
 
 // Depth of tank in cm
-const long tankDepth = 22.0;
+const long tankDepth = 20.0;
 
 // Water level has to be 2x epsilon to start filling
 const int fillThreshold = 100 - epsilon * 2;
+
+// Button press tracking variables
+int numLoops = 0;
+int numLoopsPressed = 0;
+int timeSinceLastPress = 0;
+int timeOfLastPress = 0;
+int timeOfFirstPress = 0;
 
 
 // ---------------------------------------------------------
@@ -55,7 +74,8 @@ enum class States {
   FILLING,
   READY,
   DISPENSE,
-  FAULT
+  FAULT,
+  TEST
 };
 
 
@@ -150,8 +170,7 @@ void loop() { // runs forever
     }
     dispensing = false; // Never dispense while in fault
   } else {
-    // Momentary dispense: Only true while the button is held AND there is water
-    if (currentButtonState == HIGH && lastButtonState == LOW && d2 < tankEmpty) {
+      if (currentButtonState == HIGH && lastButtonState == LOW && d2 < tankEmpty) {
       dispensing = !dispensing;
     }
   }
@@ -163,7 +182,21 @@ void loop() { // runs forever
   if (currentDisplayButtonState == HIGH && lastDisplayButtonState == LOW) {
     right = !right; // Toggle the display state between Left (false) and Right (true)
     lcd.clear();    // Clear the screen to prevent leftover characters
+    timeOfFirstPress = millis();
   }
+  if(currentDisplayButtonState == HIGH)
+    {
+      numLoopsPressed ++;
+      timeOfLastPress = millis();
+    } else {
+      if(numLoops == numLoopsPressed && timeOfLastPress - timeOfFirstPress > 3000) {
+        tankState = States::TEST;
+      } else {
+        numLoops = 0;
+        numLoopsPressed = 0;
+        
+      }
+    }
   lastDisplayButtonState = currentDisplayButtonState;
 
 
@@ -357,7 +390,6 @@ void loop() { // runs forever
 // FUNCTIONS 1. Ultrasonic Sensor Reader & Formatters
 // ---------------------------------------------------------
 long getDist(int t, int e) { 
-
   digitalWrite(t, LOW);
   delayMicroseconds(2);
   digitalWrite(t, HIGH);
@@ -370,11 +402,11 @@ long getDist(int t, int e) {
 }
 
 long formatDist1(long dist) {
-  return (dist - 18) * 5;
+  return ((dist - 18.0) / 20) * 100;
 }
 
 long formatDist2(long dist) {
-  return (dist - 21) * 5;
+  return ((dist - 21.0) / 20) * 100;
 }
 
 
@@ -382,8 +414,8 @@ long formatDist2(long dist) {
 // FUNCTIONS 2. PH Sensor Reader
 // ---------------------------------------------------------
 long readPHSensor(int pin) { // Reminder for Max: **Talk to Amir about getting rid of loop**
-  int numSamples = 25; // Reduced from 5 for faster response
-  long totalReading = 0;
+  long numSamples = 25.0; // Reduced from 5 for faster response
+  long totalReading = 0.0;
 
   for (int i = 0; i < numSamples; i++) {
     totalReading += analogRead(pin);
@@ -406,6 +438,7 @@ const char* tankStateToString(States tankState) {
     case States::READY: return "READY    ";
     case States::DISPENSE: return "DISPENSE ";
     case States::FILLING: return "FILLING  ";
+    case States::TEST: return "TESTING   ";
   }
 }
 
@@ -422,7 +455,7 @@ const char* faultStateToString(Faults faultState) {
 
 
 // ---------------------------------------------------------
-// FUNCTIONS 5. Fault Detection for the Ultrasonic Sensors
+// FUNCTIONS 4. Fault Detection for the Ultrasonic Sensors
 // ---------------------------------------------------------
 long checkSensor(int t, int e) {
   digitalWrite(t, LOW);
