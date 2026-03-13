@@ -1,24 +1,14 @@
-/*
-OLD LCD Setup Code, only used for WOKWI sims
-#include <LiquidCrystal.h>
-// LCD Pins: RS=12, E=11, D4=7, D5=6, D6=5, D7=4
-LiquidCrystal lcd(13, 12, 7, 6, 5, 4);
-*/
-
-// TO DO: Test, Fix overflow fault glitch/error (probable causes: sensor reading functions calibrated incorrectly/inconsistently formatted i.e. 100 - percentage value, not mapped to a percentage and just reading a dist value, epsilons improperly calibrated, etc.), make sure the changes to amirs sensor reading functions didnt cause syntax/compilation issues, calibrate code for physical dimensions provided
-
-// 41.4 (OUT), 39.0 (IN)
-
 // ---------------------------------------------------------
-// 1. LCD SETUP
+// SETUP 1. LCD SETUP
 // ---------------------------------------------------------
-#include <LiquidCrystal.h>
-// LCD Pins: RS=12, E=11, D4=7, D5=6, D6=5, D7=4
-LiquidCrystal lcd(13, 12, 7, 6, 5, 4);
+#include <Wire.h>
+#include <hd44780.h>
+#include <hd44780ioClass/hd44780_I2Cexp.h>
+hd44780_I2Cexp lcd;
 
 
 // ---------------------------------------------------------
-// 2. PIN DEFINITIONS
+// SETUP 2. PIN DEFINITIONS
 // ---------------------------------------------------------
 // Ultrasonic Sensor 1 (Filtered Water Tank)
 const int trig1 = 3;
@@ -26,10 +16,10 @@ const int echo1 = 2;
 
 // Ultrasonic Sensor 2 (Output Tank)
 // NOTE: Pins 0 and 1 are used for RX/TX (Serial communication) on standard Arduinos.
-const int trig2 = 1; 
+const int trig2 = 1;
 const int echo2 = 0;
 
-// Analog Sensors
+// PH Sensors
 const int phSens1 = A0; // Filtered Tank pH
 const int phSens2 = A1; // Output Tank pH
 
@@ -38,27 +28,27 @@ const int pump = 8;
 const int spigot = 9;
 
 // User Inputs
-const int switchPin = A4;
-const int displayPin = A5;
+const int switchPin = A2;
+const int displayPin = A3;
 
 // Epsilon creates a buffer to account for sensor noise and water ripples.
-const int epsilon = 5; // 5% margin of error
+const int epsilon = 6; // 5% margin of error
 
 // 100% is physically empty, but we treat it as empty at 95% to protect the pump.
-const int tankEmpty = 100 - epsilon; 
+const int tankEmpty = 100 - epsilon;
 
 // 0% is physically full, but we treat it as full at 5% to prevent overflowing.
 const int tankFull = 0 + epsilon;
 
-// depth of tank in cm
+// Depth of tank in cm
 const long tankDepth = 22.86;
 
-//water level has to be 2x epsilon to start filling
+// Water level has to be 2x epsilon to start filling
 const int fillThreshold = 100 - epsilon * 2;
 
 
 // ---------------------------------------------------------
-// 3. STATE MACHINE DEFINITIONS
+// SETUP 3. STATE MACHINE DEFINITIONS
 // ---------------------------------------------------------
 enum class States {
   IDLE,
@@ -70,7 +60,7 @@ enum class States {
 
 
 // ---------------------------------------------------------
-// 3.5. FAULT STATES DEFINITIONS
+// SETUP 3.5. FAULT STATES DEFINITIONS
 // ---------------------------------------------------------
 enum class Faults {
   NO_FAULT,// No fault (yay!)
@@ -87,21 +77,22 @@ Faults faultState;
 
 
 // ---------------------------------------------------------
-// 4. SYSTEM TRACKING VARIABLES
+// SETUP 4. SYSTEM TRACKING VARIABLES
 // ---------------------------------------------------------
-boolean pumpRunning = false;    // Tracks if the pump is currently actively running
-boolean dispensing = false;     // Tracks if the spigot is currently open
-boolean right = false;          // Used to toggle the LCD display between tanks
-boolean lastButtonState = LOW;  // Tracks the previous state of the spigot switch
+boolean pumpRunning = false; // Tracks if the pump is currently actively running
+boolean dispensing = false; // Tracks if the spigot is currently open
+boolean right = false; // Used to toggle the LCD display between tanks
+boolean lastButtonState = LOW; // Tracks the previous state of the spigot switch
 boolean lastDisplayButtonState = LOW; // Tracks the previous state of the display switch
 boolean currentDisplayButtonState = LOW;
 boolean currentButtonState = LOW;
 long acidic = 4;
 long basic = 9;
-long previousTime = 0;          //keep track of time
-long intervel = 10000;          // the time it will check if tank 1 waterlevel change and there is some water in it
-int lastD1WaterLevel = 0;       // Tracks if the tank1 waterlevel changes so no water is left behind
-int lastD2WaterLevel = 100;     // Used to track the previous waterlevel to see if tank2 is dispensing
+long previousTime = 0; //keep track of time
+long intervel = 10000; // the time it will check if tank 1 waterlevel change and there is some water in it
+int lastD1WaterLevel = 0; // Tracks if the tank1 waterlevel changes so no water is left behind
+int lastD2WaterLevel = 100; // Used to track the previous waterlevel to see if tank2 is dispensing
+int loopTracker = 0;
 
 void setup() { 
   // Boot LCD
@@ -136,16 +127,19 @@ void setup() {
 void loop() { // runs forever
 
   // ---------------------------------------------------------
-  // 1. SENSOR & INPUT READING
+  // LOOP 1. SENSOR & INPUT READING
   // ---------------------------------------------------------
   long ph1 = readPHSensor(phSens1);
   long ph2 = readPHSensor(phSens2);
 
-  int d1 = getDist(trig1, echo1); // Filtered Tank (100% = empty, 0% = full)
-  int d2 = getDist(trig2, echo2); // Output Tank (100% = empty, 0% = full)
+  int sens1 = getDist(trig1, echo1);
+  int sens2 = getDist(trig2, echo2);
 
-  int sens1 = checkSensor(trig1, echo1); // Fault detection variable for tank 1 sensor
-  int sens2 = checkSensor(trig2, echo2); // Fault detection variable for tank 2 sensor
+  int d1 = formatDist1(sens1); // Filtered Tank (100% = empty, 0% = full)
+  int d2 = formatDist2(sens2); // Output Tank (100% = empty, 0% = full)
+
+  //int sens1 = checkSensor(trig1, echo1); // Fault detection variable for tank 1 sensor
+  //int sens2 = checkSensor(trig2, echo2); // Fault detection variable for tank 2 sensor
 
   // --- Display Button Debounce & Edge Detection ---
   currentButtonState = analogRead(switchPin) >= 1000;
@@ -174,25 +168,15 @@ void loop() { // runs forever
     lcd.clear();    // Clear the screen to prevent leftover characters
   }
   lastDisplayButtonState = currentDisplayButtonState;
-  // Only for no dispense button
-  /*
-  int currentD2WaterLevel = d2;
-  if (currentD2WaterLevel>lastD2WaterLevel){
-    dispensing = true;
-  } else {
-    dispensing = false;
-  }
-  lastD2WaterLevel = currentD2WaterLevel;
-*/
-  
+
+
   // ---------------------------------------------------------
-  // 2. STATE MACHINE LOGIC
+  // LOOP 2. STATE MACHINE LOGIC
   // ---------------------------------------------------------
   switch (tankState) {
     
     case States::IDLE:
       // ACTIONS: Everything off
-      delay(500);
       digitalWrite(pump, LOW);
       pumpRunning = false;
       digitalWrite(spigot, LOW);
@@ -233,7 +217,6 @@ void loop() { // runs forever
       } 
       // Ready(1) -> Filtered is empty OR Output is totally full
       else {
-        delay(500);
         digitalWrite(pump, LOW);
         pumpRunning = false;
       }
@@ -281,19 +264,19 @@ void loop() { // runs forever
       break;
   }
 
+
   // ---------------------------------------------------------
-  // 2.5 --- Global Safety & Fault Triggers ---
+  // LOOP 2.5 --- Global Safety & Fault Triggers ---
   // ---------------------------------------------------------
   if (tankState != States::FAULT) {
-    
-    // CASE 1: Imminent Overflow. 
+    // CASE 1: Imminent Overflow
     // If either tank reads runOffPercent or less, it breached the 5% safety buffer!
     if (d1 <= tankFull || d2 <= tankFull) {
       tankState = States::FAULT;
       faultState = Faults::OVERFLOW;
     }
     
-    // CASE 2: Dry-Run Protection.
+    // CASE 2: Dry-Run Protection
     // If the supply tank is totally empty but the state machine is trying to pump
     else if (d1 >= 100 && pumpRunning == true) {
       tankState = States::FAULT;
@@ -313,28 +296,33 @@ void loop() { // runs forever
 
     // CASE 4: Incorrect Sensor Readings
     // The ultrasonic sensor has a tendency to read things other than the water level, returning some value between 19.0 and 22.0 in all of these cases
-    else if (sens1 > 19.0 && sens1 < 22.0) {
+    
+    else if (sens1 > 50 || d1 > 100 || d1 < 0) {
       tankState = States::FAULT;
       faultState = Faults::IN_SENSOR;
     }
-    else if (sens2 > 19.0 && sens2 < 22.0) {
+    else if (sens2 > 50 || d2 > 100 || d2 < 0) {
       tankState = States::FAULT;
       faultState = Faults::OUT_SENSOR;
     }
+    
   }
+
+
   // ---------------------------------------------------------
-  // 3. LCD DISPLAY LOGIC
+  // LOOP 3. LCD DISPLAY LOGIC
   // ---------------------------------------------------------
+  loopTracker++;
   lcd.setCursor(0, 0);
   if(right) {
     lcd.setCursor(0, 0);
-    lcd.print("IN: "); lcd.print(d1); lcd.print("%   PH: "); lcd.print(readPHSensor(phSens1)); lcd.print(" ");
+    lcd.print("IN: "); lcd.print(d1); lcd.print("%  PH: "); lcd.print(readPHSensor(phSens1)); lcd.print(" ");
     lcd.setCursor(0, 1);
     lcd.print(tankStateToString(tankState));
   }
   else {
     lcd.setCursor(0, 0);
-    lcd.print("OUT: "); lcd.print(d2); lcd.print("%  PH: "); lcd.print(readPHSensor(phSens2)); lcd.print(" ");
+    lcd.print("OUT: "); lcd.print(d2); lcd.print("% PH: "); lcd.print(readPHSensor(phSens2)); lcd.print(" ");
     lcd.setCursor(0, 1);
     lcd.print(tankStateToString(tankState));
   }
@@ -342,17 +330,18 @@ void loop() { // runs forever
   if(tankState != States::FAULT) {
     lcd.print("P: ");
     if(pumpRunning) {
-      lcd.print("ON ");
+      lcd.print("ON   ");
     } else {
-      lcd.print("OFF");
+      lcd.print("OFF  ");
     }
   }
   else {
     lcd.print(faultStateToString(faultState));
   }
   
+
   // ---------------------------------------------------------
-  // 4. Clear Input Tank water
+  // LOOP 4. Clear Input Tank water
   // ---------------------------------------------------------
   long currentTime = millis();
    if (currentTime - previousTime >= intervel) {
@@ -366,45 +355,41 @@ void loop() { // runs forever
    }
 }
 
-long checkSensor(int t, int e) {
+
+// ---------------------------------------------------------
+// FUNCTIONS 1. Ultrasonic Sensor Reader & Formatters
+// ---------------------------------------------------------
+long getDist(int t, int e) { 
+  int numLoops = 15;
+  int totalDist = 0;
+  
+  for(int i=0; i<numLoops; i++) {
     digitalWrite(t, LOW);
     delayMicroseconds(2);
     digitalWrite(t, HIGH);
     delayMicroseconds(10);
     digitalWrite(t, LOW);
-    
-    // Add a 30,000 microsecond timeout to pulseIn! 
-    long distance = pulseIn(e, HIGH, 30000) * .034 / 2; 
-    delay(2); // Reduced from 10 to make buttons snappier
-    return distance;
+
+    totalDist += (pulseIn(e, HIGH, 30000)* .034 / 2);
+    delay(2);
+  }  
+  return totalDist / numLoops;
 }
 
-long getDist(int t, int e) { 
-  digitalWrite(t, LOW);
-  delayMicroseconds(2);
-  digitalWrite(t, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(t, LOW);
-  
-  long duration = (pulseIn(e, HIGH, 30000)* .034 / 2); 
-  return duration;
-  }
-
-  long formatDist1(long dist) {
-    return map(dist, 19.0, 39.0, 0.0, 100.0);
-  }
-
-  long formatDist2(long dist) {
-    return map(dist, 21.4, 41.4, 0.0, 100.0);
-  }
-
-  int averageDistance = totalDistance / numSamples;
-  int percentage = map(averageDistance, 0, tankDepth, 0, 100); 
-  return constrain(percentage, 0, 100);
+long formatDist1(long dist) {
+  return ((dist - 16.14) / tankDepth) * 100.0;
 }
 
-long readPHSensor(int pin) { 
-  int numSamples = 40; // Reduced from 5 for faster response
+long formatDist2(long dist) {
+    return ((dist - 18.54) / tankDepth) * 100.0;
+}
+
+
+// ---------------------------------------------------------
+// FUNCTIONS 2. PH Sensor Reader
+// ---------------------------------------------------------
+long readPHSensor(int pin) { // Reminder for Max: **Talk to Amir about getting rid of loop**
+  int numSamples = 25; // Reduced from 5 for faster response
   long totalReading = 0;
 
   for (int i = 0; i < numSamples; i++) {
@@ -414,26 +399,48 @@ long readPHSensor(int pin) {
 
   long averageReading = totalReading / numSamples;
   long phValue = map(averageReading, 0.0, 1023.0, 0.0, 14.0); 
-  return constrain(phValue, 0.0, 14.0); 
+  return constrain(phValue, 0.0, 14.0);
 }
 
+
+// ---------------------------------------------------------
+// FUNCTIONS 3. Fault & State to String Converters (for LCD)
+// ---------------------------------------------------------
 const char* tankStateToString(States tankState) {
   switch(tankState) {
-    case States::IDLE: return "IDLE      ";
+    case States::IDLE: return "IDLE     ";
     case States::FAULT: return "FAULT ";
-    case States::READY: return "READY     ";
-    case States::DISPENSE: return "DISPENSE  ";
-    case States::FILLING: return "FILLING   ";
+    case States::READY: return "READY    ";
+    case States::DISPENSE: return "DISPENSE ";
+    case States::FILLING: return "FILLING  ";
   }
 }
 
 const char* faultStateToString(Faults faultState) {
   switch(faultState) {
-    case Faults::OVERFLOW: return "OVERFLOW";
-    case Faults::INPUT_EMPTY: return "IN EMPTY";
-    case Faults::ACIDIC: return "OUT ACIDIC";
-    case Faults::BASIC: return "OUT BASIC";
-    case Faults::IN_SENSOR: return "IN SENSOR";
-    case Faults::OUT_SENSOR: return "OUT SENSOR";
+    case Faults::OVERFLOW: return "OVERFLOW  ";
+    case Faults::INPUT_EMPTY: return "IN EMPTY  ";
+    case Faults::ACIDIC: return "OUT ACIDIC  ";
+    case Faults::BASIC: return "OUT BASIC  ";
+    case Faults::IN_SENSOR: return "IN SENSOR  ";
+    case Faults::OUT_SENSOR: return "OUT SENSOR  ";
   }
+}
+
+
+// ---------------------------------------------------------
+// FUNCTIONS 5. Fault Detection for the Ultrasonic Sensors
+// ---------------------------------------------------------
+long checkSensor(int t, int e) {
+  digitalWrite(t, LOW);
+  delayMicroseconds(2);
+  digitalWrite(t, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(t, LOW);
+    
+  // Add a 30,000 microsecond timeout to pulseIn! 
+  long distance = pulseIn(e, HIGH, 30000) ;
+  distance = distance * .034 / 2; 
+  delay(2); // Reduced from 10 to make buttons snappier
+  return distance;
 }
