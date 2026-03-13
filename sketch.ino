@@ -41,7 +41,7 @@ const int tankEmpty = 100 - epsilon;
 const int tankFull = 0 + epsilon;
 
 // Depth of tank in cm
-const long tankDepth = 22.86;
+const long tankDepth = 22.0;
 
 // Water level has to be 2x epsilon to start filling
 const int fillThreshold = 100 - epsilon * 2;
@@ -138,9 +138,6 @@ void loop() { // runs forever
   int d1 = formatDist1(sens1); // Filtered Tank (100% = empty, 0% = full)
   int d2 = formatDist2(sens2); // Output Tank (100% = empty, 0% = full)
 
-  //int sens1 = checkSensor(trig1, echo1); // Fault detection variable for tank 1 sensor
-  //int sens2 = checkSensor(trig2, echo2); // Fault detection variable for tank 2 sensor
-
   // --- Display Button Debounce & Edge Detection ---
   currentButtonState = analogRead(switchPin) >= 1000;
   
@@ -192,7 +189,7 @@ void loop() { // runs forever
 
     case States::FILLING:
       // ACTIONS: Pump on, Spigot off
-      digitalWrite(pump, HIGH);
+      //digitalWrite(pump, HIGH);
       pumpRunning = true;
       digitalWrite(spigot, LOW);
 
@@ -212,7 +209,7 @@ void loop() { // runs forever
       
       // Ready(2) -> Filtered has water, keep topping up Output (unless Output is full)
       if (d1 < tankEmpty && d2 > tankFull) {
-        digitalWrite(pump, HIGH);
+        //digitalWrite(pump, HIGH);
         pumpRunning = true;
       } 
       // Ready(1) -> Filtered is empty OR Output is totally full
@@ -236,7 +233,7 @@ void loop() { // runs forever
       digitalWrite(spigot, HIGH);
       
       if (d1 < tankEmpty && d2 > tankFull) {
-        digitalWrite(pump, HIGH);
+        //digitalWrite(pump, HIGH);
         pumpRunning = true;
       } else {
         digitalWrite(pump, LOW);
@@ -360,28 +357,24 @@ void loop() { // runs forever
 // FUNCTIONS 1. Ultrasonic Sensor Reader & Formatters
 // ---------------------------------------------------------
 long getDist(int t, int e) { 
-  int numLoops = 15;
-  int totalDist = 0;
-  
-  for(int i=0; i<numLoops; i++) {
-    digitalWrite(t, LOW);
-    delayMicroseconds(2);
-    digitalWrite(t, HIGH);
-    delayMicroseconds(10);
-    digitalWrite(t, LOW);
 
-    totalDist += (pulseIn(e, HIGH, 30000)* .034 / 2);
-    delay(2);
-  }  
-  return totalDist / numLoops;
+  digitalWrite(t, LOW);
+  delayMicroseconds(2);
+  digitalWrite(t, HIGH);
+  delayMicroseconds(10);
+  digitalWrite(t, LOW);
+
+  long dist = (pulseIn(e, HIGH, 30000)* .034 / 2);
+  delay(2);
+  return dist;
 }
 
 long formatDist1(long dist) {
-  return ((dist - 16.14) / tankDepth) * 100.0;
+  return (dist - 18) * 5;
 }
 
 long formatDist2(long dist) {
-    return ((dist - 18.54) / tankDepth) * 100.0;
+  return (dist - 21) * 5;
 }
 
 
@@ -440,7 +433,7 @@ long checkSensor(int t, int e) {
     
   // Add a 30,000 microsecond timeout to pulseIn! 
   long distance = pulseIn(e, HIGH, 30000) ;
-  distance = distance * .034 / 2; 
+  distance = distance * .0343 / 2; 
   delay(2); // Reduced from 10 to make buttons snappier
   return distance;
 }
