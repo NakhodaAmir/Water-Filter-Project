@@ -44,7 +44,7 @@ const int switchPin = A2;
 const int displayPin = A3;
 
 // Epsilon creates a buffer to account for sensor noise and water ripples.
-const int epsilon = 6; // 5% margin of error
+const int epsilon = 8; // 5% margin of error
 
 // 100% is physically empty, but we treat it as empty at 95% to protect the pump.
 const int tankEmpty = 100 - epsilon;
@@ -53,7 +53,7 @@ const int tankEmpty = 100 - epsilon;
 const int tankFull = 0 + epsilon;
 
 // Depth of tank in cm
-const long tankDepth = 20.0;
+const float tankDepth = 20.0;
 
 // Water level has to be 2x epsilon to start filling
 const int fillThreshold = 100 - epsilon * 2;
@@ -106,10 +106,10 @@ boolean lastButtonState = LOW; // Tracks the previous state of the spigot switch
 boolean lastDisplayButtonState = LOW; // Tracks the previous state of the display switch
 boolean currentDisplayButtonState = LOW;
 boolean currentButtonState = LOW;
-long acidic = 4;
-long basic = 9;
-long previousTime = 0; //keep track of time
-long intervel = 10000; // the time it will check if tank 1 waterlevel change and there is some water in it
+float acidic = 4;
+float basic = 9;
+float previousTime = 0; //keep track of time
+float intervel = 10000; // the time it will check if tank 1 waterlevel change and there is some water in it
 int lastD1WaterLevel = 0; // Tracks if the tank1 waterlevel changes so no water is left behind
 int lastD2WaterLevel = 100; // Used to track the previous waterlevel to see if tank2 is dispensing
 int loopTracker = 0;
@@ -149,14 +149,14 @@ void loop() { // runs forever
   // ---------------------------------------------------------
   // LOOP 1. SENSOR & INPUT READING
   // ---------------------------------------------------------
-  long ph1 = readPHSensor(phSens1);
-  long ph2 = readPHSensor(phSens2);
+  float ph1 = readPHSensor(phSens1);
+  float ph2 = readPHSensor(phSens2);
 
-  int sens1 = getDist(trig1, echo1);
-  int sens2 = getDist(trig2, echo2);
+  float sens1 = getDist(trig1, echo1);
+  float sens2 = getDist(trig2, echo2);
 
-  int d1 = formatDist1(sens1); // Filtered Tank (100% = empty, 0% = full)
-  int d2 = formatDist2(sens2); // Output Tank (100% = empty, 0% = full)
+  float d1 = formatDist1(sens1); // Filtered Tank (100% = empty, 0% = full)
+  float d2 = formatDist2(sens2); // Output Tank (100% = empty, 0% = full)
 
   // --- Display Button Debounce & Edge Detection ---
   currentButtonState = analogRead(switchPin) >= 1000;
@@ -252,7 +252,7 @@ void loop() { // runs forever
       }
 
       // TRANSITIONS:
-      if (dispensing) {
+      if (dispensing && d2 < fillThreshold) {
         tankState = States::DISPENSE;
       } else if (d2 >= tankEmpty && d1 < tankEmpty) {
         tankState = States::FILLING; // Output empty, Filtered has water
@@ -343,16 +343,17 @@ void loop() { // runs forever
   // LOOP 3. LCD DISPLAY LOGIC
   // ---------------------------------------------------------
   loopTracker++;
+  lcd.clear();
   lcd.setCursor(0, 0);
   if(right) {
     lcd.setCursor(0, 0);
-    lcd.print("IN: "); lcd.print(d1); lcd.print("%  PH: "); lcd.print(readPHSensor(phSens1)); lcd.print(" ");
+    lcd.print("I:"); lcd.print(int(d1)); lcd.print("% PH: "); lcd.print(readPHSensor(phSens1)); lcd.print(" ");
     lcd.setCursor(0, 1);
     lcd.print(tankStateToString(tankState));
   }
   else {
     lcd.setCursor(0, 0);
-    lcd.print("OUT: "); lcd.print(d2); lcd.print("% PH: "); lcd.print(readPHSensor(phSens2)); lcd.print(" ");
+    lcd.print("O:"); lcd.print(int(d2)); lcd.print("% PH: "); lcd.print(readPHSensor(phSens2)); lcd.print(" ");
     lcd.setCursor(0, 1);
     lcd.print(tankStateToString(tankState));
   }
@@ -373,7 +374,7 @@ void loop() { // runs forever
   // ---------------------------------------------------------
   // LOOP 4. Clear Input Tank water
   // ---------------------------------------------------------
-  long currentTime = millis();
+  float currentTime = millis();
    if (currentTime - previousTime >= intervel) {
       if(d1==lastD1WaterLevel && d1!=100){
         tankState = States::FILLING;
@@ -389,41 +390,52 @@ void loop() { // runs forever
 // ---------------------------------------------------------
 // FUNCTIONS 1. Ultrasonic Sensor Reader & Formatters
 // ---------------------------------------------------------
-long getDist(int t, int e) { 
-  digitalWrite(t, LOW);
-  delayMicroseconds(2);
-  digitalWrite(t, HIGH);
-  delayMicroseconds(10);
-  digitalWrite(t, LOW);
-
-  long dist = (pulseIn(e, HIGH, 30000)* .034 / 2);
-  delay(2);
-  return dist;
+float getDist(int t, int e) { 
+  int numSamples = 40;
+  int divisor = 0;
+  float dist = 0.0;
+  float totalDist = 0.0;
+  for(int i=0; i<numSamples; i++) {
+    digitalWrite(t, LOW);
+    delayMicroseconds(2);
+    digitalWrite(t, HIGH);
+    delayMicroseconds(10);
+    digitalWrite(t, LOW);
+    dist = (pulseIn(e, HIGH, 30000)* .034 / 2);
+    if(dist < 44.0 && dist > 20.0) {
+      totalDist += dist;
+      divisor ++;
+    }
+    delay(10);
+  }
+  return dist; // / divisor;
 }
 
-long formatDist1(long dist) {
-  return ((dist - 18.0) / 20) * 100;
+float formatDist1(float dist) {
+  float out = ((dist - 18.88) / 20.0) * 100.0 + 1;
+  return constrain(out, 0, 100);
 }
 
-long formatDist2(long dist) {
-  return ((dist - 21.0) / 20) * 100;
+float formatDist2(float dist) {
+  float out = ((dist - 20.68) / 20.0) * 100.0 + 1;
+  return constrain(out, 0, 100);
 }
 
 
 // ---------------------------------------------------------
 // FUNCTIONS 2. PH Sensor Reader
 // ---------------------------------------------------------
-long readPHSensor(int pin) { // Reminder for Max: **Talk to Amir about getting rid of loop**
-  long numSamples = 25.0; // Reduced from 5 for faster response
-  long totalReading = 0.0;
+float readPHSensor(int pin) { // Reminder for Max: **Talk to Amir about getting rid of loop**
+  int numSamples = 5; // Reduced from 5 for faster response
+  float totalReading = 0.0;
 
   for (int i = 0; i < numSamples; i++) {
     totalReading += analogRead(pin);
     delay(2); // Reduced from 10 to make buttons snappier
   }
 
-  long averageReading = totalReading / numSamples;
-  long phValue = map(averageReading, 0.0, 1023.0, 0.0, 14.0); 
+  float averageReading = totalReading / numSamples;
+  float phValue = map(averageReading, 0.0, 1023.0, 0.0, 14.0); 
   return constrain(phValue, 0.0, 14.0);
 }
 
@@ -433,31 +445,33 @@ long readPHSensor(int pin) { // Reminder for Max: **Talk to Amir about getting r
 // ---------------------------------------------------------
 const char* tankStateToString(States tankState) {
   switch(tankState) {
-    case States::IDLE: return "IDLE     ";
+    case States::IDLE: return "IDLE ";
     case States::FAULT: return "FAULT ";
-    case States::READY: return "READY    ";
+    case States::READY: return "READY ";
     case States::DISPENSE: return "DISPENSE ";
-    case States::FILLING: return "FILLING  ";
-    case States::TEST: return "TESTING   ";
+    case States::FILLING: return "FILLING ";
+    case States::TEST: return "TESTING ";
   }
+  return "ERROR";
 }
 
 const char* faultStateToString(Faults faultState) {
   switch(faultState) {
-    case Faults::OVERFLOW: return "OVERFLOW  ";
-    case Faults::INPUT_EMPTY: return "IN EMPTY  ";
-    case Faults::ACIDIC: return "OUT ACIDIC  ";
-    case Faults::BASIC: return "OUT BASIC  ";
-    case Faults::IN_SENSOR: return "IN SENSOR  ";
-    case Faults::OUT_SENSOR: return "OUT SENSOR  ";
+    case Faults::OVERFLOW: return "OVERFLOW";
+    case Faults::INPUT_EMPTY: return "IN EMPTY";
+    case Faults::ACIDIC: return "OUT ACIDIC";
+    case Faults::BASIC: return "OUT BASIC";
+    case Faults::IN_SENSOR: return "IN SENSOR";
+    case Faults::OUT_SENSOR: return "OUT SENSOR";
   }
+  return "ERROR";
 }
 
 
 // ---------------------------------------------------------
 // FUNCTIONS 4. Fault Detection for the Ultrasonic Sensors
 // ---------------------------------------------------------
-long checkSensor(int t, int e) {
+float checkSensor(int t, int e) {
   digitalWrite(t, LOW);
   delayMicroseconds(2);
   digitalWrite(t, HIGH);
@@ -465,8 +479,9 @@ long checkSensor(int t, int e) {
   digitalWrite(t, LOW);
     
   // Add a 30,000 microsecond timeout to pulseIn! 
-  long distance = pulseIn(e, HIGH, 30000) ;
+  float distance = pulseIn(e, HIGH, 30000) ;
   distance = distance * .0343 / 2; 
   delay(2); // Reduced from 10 to make buttons snappier
   return distance;
 }
+
