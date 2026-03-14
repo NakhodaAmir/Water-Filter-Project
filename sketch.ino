@@ -1,4 +1,4 @@
-// Test: an incrementer for every time the code loops, and one for every time the code loops and the button is being held down, if millis() since last button press is more than 10 seconds & two increment variables are the same, enter tesing mode
+// TO DO: On Monday we need to calibrate ph sensors with ph strips, all that includes is a + or - to offset the reading to the actual PH value and then WE'RE DONE BABYYYY
 
 // ---------------------------------------------------------
 // SETUP 1. LCD SETUP
@@ -75,7 +75,7 @@ enum class States {
   READY,
   DISPENSE,
   FAULT,
-  TEST
+  CLEAN
 };
 
 
@@ -149,8 +149,8 @@ void loop() { // runs forever
   // ---------------------------------------------------------
   // LOOP 1. SENSOR & INPUT READING
   // ---------------------------------------------------------
-  float ph1 = readPHSensor(phSens1);
-  float ph2 = readPHSensor(phSens2);
+  float ph1 = readPHNoSample(phSens1);
+  float ph2 = readPHNoSample(phSens2);
 
   float sens1 = getDist(trig1, echo1);
   float sens2 = getDist(trig2, echo2);
@@ -189,8 +189,8 @@ void loop() { // runs forever
       numLoopsPressed ++;
       timeOfLastPress = millis();
     } else {
-      if(numLoops == numLoopsPressed && timeOfLastPress - timeOfFirstPress > 3000) {
-        tankState = States::TEST;
+      if(numLoops == numLoopsPressed && timeOfLastPress - timeOfFirstPress > 5000) {
+        tankState = States::CLEAN;
       } else {
         numLoops = 0;
         numLoopsPressed = 0;
@@ -215,14 +215,14 @@ void loop() { // runs forever
       // TRANSITIONS:
       if (d1 < fillThreshold && d2 >= tankEmpty) { 
         tankState = States::FILLING; // Filtered has water, Output is empty
-      } else if (d2 < tankEmpty) {
+      } else if (d2 < fillThreshold) {
         tankState = States::READY;   // Output somehow got water, go to ready
       }
       break;
 
     case States::FILLING:
       // ACTIONS: Pump on, Spigot off
-      //digitalWrite(pump, HIGH);
+      digitalWrite(pump, HIGH);
       pumpRunning = true;
       digitalWrite(spigot, LOW);
 
@@ -231,7 +231,7 @@ void loop() { // runs forever
         tankState = States::READY; // Output tank is full (0%)
       } else if (d1 >= tankEmpty) {
         tankState = States::IDLE;  // Filtered tank ran out before output filled
-      } else if (d2 < tankEmpty) {
+      } else if (d2 < fillThreshold) {
         tankState = States::READY; // Output tank has enough water to be ready
       }
       break;
@@ -242,7 +242,7 @@ void loop() { // runs forever
       
       // Ready(2) -> Filtered has water, keep topping up Output (unless Output is full)
       if (d1 < tankEmpty && d2 > tankFull) {
-        //digitalWrite(pump, HIGH);
+        digitalWrite(pump, HIGH);
         pumpRunning = true;
       } 
       // Ready(1) -> Filtered is empty OR Output is totally full
@@ -252,7 +252,7 @@ void loop() { // runs forever
       }
 
       // TRANSITIONS:
-      if (dispensing && d2 < fillThreshold) {
+      if (dispensing) {
         tankState = States::DISPENSE;
       } else if (d2 >= tankEmpty && d1 < tankEmpty) {
         tankState = States::FILLING; // Output empty, Filtered has water
@@ -266,7 +266,7 @@ void loop() { // runs forever
       digitalWrite(spigot, HIGH);
       
       if (d1 < tankEmpty && d2 > tankFull) {
-        //digitalWrite(pump, HIGH);
+        digitalWrite(pump, HIGH);
         pumpRunning = true;
       } else {
         digitalWrite(pump, LOW);
@@ -292,6 +292,15 @@ void loop() { // runs forever
       // TRANSITIONS:
       // Handled by the button press logic at the top of the loop
       break;
+
+    case States::CLEAN:
+      // ACTIONS: Turns the pump on when button is held, used for cleaning out pipes when deconstructing
+      digitalWrite(pump, HIGH);
+      pumpRunning = false;
+      if(analogRead(displayPin) > 1000) {
+        digitalWrite(pump, LOW);
+        pumpRunning = false; 
+      }
   }
 
 
@@ -347,13 +356,13 @@ void loop() { // runs forever
   lcd.setCursor(0, 0);
   if(right) {
     lcd.setCursor(0, 0);
-    lcd.print("I:"); lcd.print(int(d1)); lcd.print("% PH: "); lcd.print(readPHSensor(phSens1)); lcd.print(" ");
+    lcd.print("I: "); lcd.print(int(d1)); lcd.print("% PH: "); lcd.print(ph1); lcd.print(" ");
     lcd.setCursor(0, 1);
     lcd.print(tankStateToString(tankState));
   }
   else {
     lcd.setCursor(0, 0);
-    lcd.print("O:"); lcd.print(int(d2)); lcd.print("% PH: "); lcd.print(readPHSensor(phSens2)); lcd.print(" ");
+    lcd.print("O: "); lcd.print(int(d2)); lcd.print("% PH: "); lcd.print(ph2); lcd.print(" ");
     lcd.setCursor(0, 1);
     lcd.print(tankStateToString(tankState));
   }
@@ -425,18 +434,11 @@ float formatDist2(float dist) {
 // ---------------------------------------------------------
 // FUNCTIONS 2. PH Sensor Reader
 // ---------------------------------------------------------
-float readPHSensor(int pin) { // Reminder for Max: **Talk to Amir about getting rid of loop**
-  int numSamples = 5; // Reduced from 5 for faster response
-  float totalReading = 0.0;
 
-  for (int i = 0; i < numSamples; i++) {
-    totalReading += analogRead(pin);
-    delay(2); // Reduced from 10 to make buttons snappier
-  }
-
-  float averageReading = totalReading / numSamples;
-  float phValue = map(averageReading, 0.0, 1023.0, 0.0, 14.0); 
-  return constrain(phValue, 0.0, 14.0);
+float readPHNoSample(int pin) {
+  int rawValue = analogRead(pin);
+  float voltage = rawValue * (5.0 / 1023.0);
+  return 3.5 * voltage;
 }
 
 
@@ -450,7 +452,7 @@ const char* tankStateToString(States tankState) {
     case States::READY: return "READY ";
     case States::DISPENSE: return "DISPENSE ";
     case States::FILLING: return "FILLING ";
-    case States::TEST: return "TESTING ";
+    case States::CLEAN: return "CLEANING ";
   }
   return "ERROR";
 }
@@ -484,4 +486,3 @@ float checkSensor(int t, int e) {
   delay(2); // Reduced from 10 to make buttons snappier
   return distance;
 }
-
