@@ -1,24 +1,40 @@
-# Water Filter Project
-- Source code handling the logic of a water filter
-- Contains other files to run the simulation at WOKWI
+# Water Filter
+> A robust, Arduino-based embedded system for real-time water filteration monitoring and automated pump control embedded into a custom built water filter housing.
+
+## 🏆 Showcase
+
+## 📖 Table of Contents
+* [Features](#-features)
+* [Quick Start](#-quick-start)
+* [Architecture](#-architecture)
+* [Project Structure](#-project-structure)
+* [API Refrence](#-api-reference)
+
+## ✨ Features
+| Features | Description |
+| -------- | ----------- |
+| LCD Display | <ul><li>Displays Filtered Water/Output Tank Capacity</li><li>Displays PH levels of Intermediate/Output Tank</li><li>Displays Tank States</li><li>Displays Fault States</li></ul> |
+| Fault Detection | <ul><li>When too much water is in the Filtered Water/Output Tank</li><li>PH level in Output Tank is greater than 9ph or less than 4p</li><li>When there is no water in the Filtered Water Tank</li><\ul> |
+
+## 🚀 Quick Start
+### Prerequisite
+- Custom built water filter
+### Install
+Clone the repo to your local directory and upload the folder to the Arduino
+```bash
+git clone https://github.com/NakhodaAmir/Water-Filter-Project.git
+```
+### Run
+Pour water
+
+## ⚙️ Architecture
 - The system has 3 tanks that contain water:
   - Intermediate Tank (Tank that hold the inputed water before the water passes through the filter)
   - Filtered Water Tank (Tank that hold the water that passed through the filter)
   - Output Tank (Tank that contains the filtered water that was pumped from the Filtered Water Tank)
-    
-## Functionality
-- Push button to dispense water
-- LCD Display
-  - Displays Filtered Water/Output Tank Capacity
-  - Displays PH levels of Intermediate/Output Tank
-  - Displays Tank States
-  - Displays Fault States
-- Fault Detection
-  - When too much water is in the Filtered Water/Output Tank
-  - PH level in Output Tank is greater than 9ph or less than 4ph
-  - When there is no water in the Filtered Water Tank
-    
-## Code Logic
+
+<img width="736" height="385" alt="image" src="https://github.com/user-attachments/assets/98063f89-e372-4533-9cd9-2ff09e964b16" />
+
 ### Tank States
 0% == Full;100% == Empty
 | Tank State | Filtered Water Tank Capacity | Output Tank Capacity| Extra Conditions |
@@ -43,3 +59,19 @@
 | INPUT_EMPTY | when there is no water for the pump to suck |
 | ACIDIC | when the output tank ph is less than 4ph |
 | BASIC | when the output tank ph is greater than 9ph |
+
+## 📂 Project Structure
+```text
+main/
+├──...
+├── sketch.ino     # Arduino source code
+├──...
+└── README.md
+```
+
+## 📦 API Reference
+### [class_name](link)
+> **Purpose:**
+* **Key Methods:**
+    *`method_name() -> return_type`:
+* **State:**
