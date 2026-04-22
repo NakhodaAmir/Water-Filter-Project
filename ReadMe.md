@@ -2,6 +2,9 @@
 > A robust, Arduino-based embedded system for real-time water filteration monitoring and automated pump control embedded into a custom built water filter housing.
 
 ## 🏆 Showcase
+<img width="32%" alt="image" src="https://github.com/user-attachments/assets/44c24e36-8283-4b45-af8b-757991b0c455" />
+<img width="32%" alt="image" src="https://github.com/user-attachments/assets/6e574491-980b-40e1-8031-d634050e8bef" />
+<img width="32%" alt="image" src="https://github.com/user-attachments/assets/ee7ec111-1696-4d88-97e8-4430d696efb2" />
 
 ## 📖 Table of Contents
 * [Features](#-features)
