@@ -73,7 +73,7 @@ main/
 ```
 
 ## 📦 API Reference
-### [class_name](link)
+### [sketch.ino](../main/sketch.ino)
 > **Purpose:** Controls a triple-tank automated water pumping and filtration system. It uses a finite state machine to manage a pump and a spigot based on water levels (via ultrasonic sensors) and water quality (via pH sensors), while actively monitoring for hardware faults and displaying real-time telemetry on an LCD.
 * **Key Methods:**
     * `setup() -> void`: Initializes all hardware components (LCD, pins for sensors and actuators) and defaults the system to a safe IDLE state with hardware explicitly turned off.
